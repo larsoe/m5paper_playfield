@@ -1,0 +1,152 @@
+#include <M5EPD.h>
+#include <WiFi.h>
+#include <NTPClient.h>
+
+rtc_time_t RTCtime;
+rtc_date_t RTCDate;
+char timeStrbuff[64];
+
+WiFiUDP ntpUDP;                       //Definer tidsserver
+NTPClient timeClient(ntpUDP);         //Definer tidsserver
+
+File root;
+
+File myFile;
+String myText = "Starttekst";
+
+M5EPD_Canvas canvas(&M5.EPD);
+
+                                                //Start Real time clock på M5
+
+void setup() {
+  // put your setup code here, to run once:
+
+  M5.begin();
+  M5.RTC.begin(); 
+  M5.SHT30.Begin();
+  M5.EPD.SetRotation(270);
+  M5.EPD.Clear(true);
+  WiFi.begin("GNX832008", "KNNJFWRZEX57");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print("....");
+  }
+  
+  root = SD.open("/");                                             //Leser filnavn
+  //printDirectory(root, 0);                                         //Leser filnavn
+
+  
+  setupTime();
+  
+  canvas.createCanvas(540, 960);
+  canvas.setTextSize(3);
+
+    sprintf(timeStrbuff, "%d/%02d/%02d %02d:%02d:%02d",
+          RTCDate.year, RTCDate.mon, RTCDate.day,
+          RTCtime.hour, RTCtime.min, RTCtime.sec);
+
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+  flushTime();
+  delay(10000);
+
+
+  canvas.setTextArea(20, 40, 500, 860);                   //Denne blokken lager en tekstboks, formaterer den og setter på textwrapping.
+  canvas.setTextSize(2);
+  canvas.setTextWrap(true);
+  canvas.setTextPadding(10);
+
+  canvas.println("Run loop:");
+  canvas.println(myText);
+  canvas.println("End loop:");
+  Serial.println("--------------------------------");
+  Serial.println(myText);
+  Serial.println("--------------------------------");  
+  canvas.pushCanvas(0,0,UPDATE_MODE_DU4);
+  myText = "";                                          //Tømmer myText for å unngå opphopning.
+  readFile();
+}
+
+void setupTime() {
+
+  RTCtime.hour = timeClient.getHours();
+  RTCtime.min = timeClient.getMinutes();
+  RTCtime.sec = timeClient.getSeconds();
+  M5.RTC.setTime(&RTCtime);
+
+  RTCDate.year = 1999;
+  RTCDate.mon = 11;
+  RTCDate.day = 27;
+  M5.RTC.setDate(&RTCDate);
+  Serial.println("SetupTime done");
+
+
+}
+
+void flushTime() {
+  M5.RTC.getTime(&RTCtime);
+  M5.RTC.getDate(&RTCDate);
+
+  sprintf(timeStrbuff, "%d/%02d/%02d %02d:%02d:%02d",
+          RTCDate.year, RTCDate.mon, RTCDate.day,
+          RTCtime.hour, RTCtime.min, RTCtime.sec);
+
+  canvas.drawString(timeStrbuff, 5, 5);
+  Serial.println("FlushTime done");
+}
+
+
+void printDirectory(File dir, int numTabs) {                          //Funksjon for å lese filnavn.
+
+  while (true) {
+    File entry =  dir.openNextFile();
+    if (! entry) {
+      // no more files
+      break;
+    }
+    for (uint8_t i = 0; i < numTabs; i++) {
+      Serial.print('\t');
+    }
+    Serial.print(entry.name());
+    if (entry.isDirectory()) {
+      Serial.println("/");
+      printDirectory(entry, numTabs + 1);
+    } else {
+      // files have sizes, directories do not
+      Serial.print("\t\t");
+      Serial.println(entry.size(), DEC);
+    }
+    entry.close();
+  }
+}
+
+
+void readFile(){
+
+myFile = SD.open("/scifi.txt");
+if (myFile){
+     //Serial.println("/scifi.txt:");
+
+     // read all the text written on the file
+     while (myFile.available()){
+     //    Serial.write(myFile.read());
+           myText.concat((char)myFile.read());
+     //    Serial.println(myText);
+     }
+     // close the file:
+     myFile.close();
+
+     
+
+} 
+else {
+    // if the file didn't open, report an error:
+    Serial.println("error opening the text file!");
+}
+  Serial.println("readfile done");
+  }
+
